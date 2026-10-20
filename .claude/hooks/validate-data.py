@@ -54,7 +54,7 @@ def main():
         sys.exit(0)
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             json.load(f)
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

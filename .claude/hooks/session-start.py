@@ -30,7 +30,7 @@ def main():
         sys.exit(0)
 
     try:
-        with open(profile_path, 'r') as f:
+        with open(profile_path, 'r', encoding='utf-8') as f:
             profile = json.load(f)
 
         learner = profile.get("learner", {})
@@ -48,7 +48,7 @@ def main():
         sr_path = data / "spaced-repetition.json"
         if sr_path.exists():
             try:
-                with open(sr_path, 'r') as f:
+                with open(sr_path, 'r', encoding='utf-8') as f:
                     sr_data = json.load(f)
 
                 today = datetime.now().strftime("%Y-%m-%d")

@@ -246,8 +246,54 @@ class UpdateDbSmokeTest(unittest.TestCase):
         return payload
 
     def _load(self, name):
-        with open(self.tmp / "data" / name) as f:
+        with open(self.tmp / "data" / name, encoding="utf-8") as f:
             return json.load(f)
+
+    # --- Encoding, skill_scores validation, mistakes sync ---
+
+    def test_non_ascii_payload_survives_stdin(self):
+        # Raw UTF-8 bytes on stdin (not \u escapes), as a shell heredoc sends them.
+        payload = dict(SESSION_PAYLOAD)
+        payload["new_vocabulary"] = [{
+            "item_id": "vocab_een", "content": "één — café",
+            "answer": "one", "category": "numbers"}]
+        proc = subprocess.run(
+            ["python3", str(SCRIPT)],
+            input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            cwd=str(self.tmp), capture_output=True,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        item = self._load("spaced-repetition.json")["items"]["vocab_een"]
+        self.assertEqual(item["content"], "één — café")
+
+    def test_skill_scores_missing_exercises_exits_1_no_mutation(self):
+        before = self._load("progress-db.json")
+        payload = dict(SESSION_PAYLOAD)
+        payload["skill_scores"] = {"vocabulary": {"correct": 4, "time_minutes": 5}}
+        proc = self._run(payload)
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(self._load("progress-db.json"), before)
+
+    def test_skill_scores_correct_above_exercises_exits_1(self):
+        payload = dict(SESSION_PAYLOAD)
+        payload["skill_scores"] = {"vocabulary": {"exercises": 2, "correct": 3}}
+        self.assertEqual(self._run(payload).returncode, 1)
+
+    def test_correct_review_of_error_pattern_syncs_mistakes_db(self):
+        # First session logs the error; a later review answers it correctly.
+        self.assertEqual(self._run(SESSION_PAYLOAD).returncode, 0)
+        payload = dict(SESSION_PAYLOAD)
+        payload.update(session_id="session-003", date="2026-04-25", errors=[],
+                       new_vocabulary=[],
+                       review_results=[{"item_id": "verb_spreek", "quality": 4}])
+        proc = self._run(payload)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        pat = self._load("mistakes-db.json")["error_patterns"]["verb_spreek"]
+        due = self._load("spaced-repetition.json")["items"]["verb_spreek"]["due_date"]
+        self.assertEqual(pat["consecutive_correct"], 1)
+        self.assertEqual(pat["consecutive_incorrect"], 0)
+        self.assertEqual(pat["next_review"], due)
+        self.assertEqual(pat["frequency"], 1)  # a correct review is not an error
 
     def test_milestone_string_form(self):
         text = "Reached A2 vocabulary milestone"

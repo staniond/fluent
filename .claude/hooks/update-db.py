@@ -136,6 +136,31 @@ def normalize_milestones(session: dict) -> list:
     return normalized
 
 
+def validate_skill_scores(session: dict):
+    """Reject skill_scores that would corrupt cumulative counters.
+
+    Each entry needs integer `exercises` and `correct` with
+    0 <= correct <= exercises. A missing `exercises` key used to be read as 0,
+    which pushed correct_count above exercises_completed and drove
+    incorrect_count negative. Exits 1 before any DB is touched.
+    """
+    scores = session.get("skill_scores", {})
+    if not isinstance(scores, dict):
+        print(f"[Fluent] Error: 'skill_scores' must be an object, got {type(scores).__name__}", file=sys.stderr)
+        sys.exit(1)
+    for skill, s in scores.items():
+        if not isinstance(s, dict):
+            print(f"[Fluent] Error: skill_scores.{skill} must be an object", file=sys.stderr)
+            sys.exit(1)
+        ex, cor = s.get("exercises"), s.get("correct")
+        if not isinstance(ex, int) or not isinstance(cor, int) or isinstance(ex, bool) or isinstance(cor, bool):
+            print(f"[Fluent] Error: skill_scores.{skill} needs integer 'exercises' and 'correct' (got {s})", file=sys.stderr)
+            sys.exit(1)
+        if not 0 <= cor <= ex:
+            print(f"[Fluent] Error: skill_scores.{skill} must satisfy 0 <= correct <= exercises (got correct={cor}, exercises={ex})", file=sys.stderr)
+            sys.exit(1)
+
+
 def backup_all(tag: str):
     backup_path = BACKUP_DIR / tag
     backup_path.mkdir(parents=True, exist_ok=True)
@@ -481,6 +506,35 @@ def update_spaced_repetition(sr: dict, session: dict):
     sr["metadata"]["total_items_tracked"] = len(items)
 
 
+def sync_mistakes_from_reviews(mistakes: dict, sr: dict, session: dict):
+    """Mirror review outcomes of error-pattern items into mistakes-db.
+
+    update_mistakes_db only sees `errors[]`, so a pattern reviewed correctly
+    kept a stale next_review and consecutive_incorrect forever. Failed reviews
+    are already counted via `errors[]` and are not double-counted here.
+    Runs after update_spaced_repetition so due dates are final.
+    """
+    today = session["date"]
+    patterns = mistakes.get("error_patterns", {})
+    items = sr.get("items", {})
+    errored = {e["pattern_id"] for e in session.get("errors", [])}
+
+    for review in session.get("review_results", []):
+        pid = review["item_id"]
+        pat = patterns.get(pid)
+        if pat is None or pid in errored or review["quality"] < 3:
+            continue
+        pat["consecutive_correct"] = pat.get("consecutive_correct", 0) + 1
+        pat["consecutive_incorrect"] = 0
+        pat["last_reviewed"] = today
+
+    # Keep next_review aligned with the SM-2 schedule for every tracked pattern
+    for pid, pat in patterns.items():
+        due = items.get(pid, {}).get("due_date")
+        if due:
+            pat["next_review"] = due
+
+
 def update_session_log(log: dict, session: dict, streak: int):
     """Matches existing schema: skills_practiced (array), score_breakdown,
     topics_covered, breakthroughs, focus_next_session, achievements_earned."""
@@ -544,6 +598,7 @@ def main():
     # Validate + canonicalize milestones before touching any DB (exits 1 on
     # malformed input, so disk stays untouched on a validation failure).
     normalize_milestones(session)
+    validate_skill_scores(session)
 
     session.setdefault("duration_minutes", 0)
 
@@ -571,6 +626,7 @@ def main():
         update_mistakes_db(data["mistakes"], session)
         update_mastery_db(data["mastery"], session, data["progress"])
         update_spaced_repetition(data["sr"], session)
+        sync_mistakes_from_reviews(data["mistakes"], data["sr"], session)
         streak = data["profile"].get("current_streak_days", 0)
         update_session_log(data["log"], session, streak)
     except Exception as e:

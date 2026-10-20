@@ -41,7 +41,7 @@ def main():
     profile_path = data / "learner-profile.json"
     if profile_path.exists():
         try:
-            with open(profile_path, 'r') as f:
+            with open(profile_path, 'r', encoding='utf-8') as f:
                 profile = json.load(f)
 
             streak = profile.get("current_streak_days", 0)

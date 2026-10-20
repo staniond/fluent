@@ -69,6 +69,25 @@ def main():
     items = sr.get("items", {})
     due_items = [iid for iid, item in items.items() if item.get("due_date", "") <= today]
 
+    # The stored review_queue is bucketed relative to the day update-db.py last
+    # ran, so by the next morning "today" is empty. Re-bucket against the real
+    # date (in the output only; disk is untouched).
+    if items:
+        tom = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        week_end = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+        queue = {"today": [], "tomorrow": [], "this_week": [], "later": []}
+        for iid, item in items.items():
+            due = item.get("due_date", today)
+            if due <= today:
+                queue["today"].append(iid)
+            elif due == tom:
+                queue["tomorrow"].append(iid)
+            elif due <= week_end:
+                queue["this_week"].append(iid)
+            else:
+                queue["later"].append(iid)
+        sr["review_queue"] = queue
+
     log = databases.get("session_log", {})
     sessions = log.get("sessions", [])
 
