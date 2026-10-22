@@ -5,7 +5,7 @@ Displays welcome message with learner stats and due reviews
 """
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -40,10 +40,18 @@ def main():
         target_level = learner.get("target_level", "...")
         streak = profile.get("current_streak_days", 0)
 
+        # The stored streak is only refreshed by update-db.py, so it goes stale
+        # once a day is missed. Same rule as read-db.py's streak_active.
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        if profile.get("last_updated", "") not in (today, yesterday):
+            streak = 0
+
         print(f"[Fluent] 🌍 Welcome back, {name}!")
         print(f"[Fluent] 📚 Learning: {target_lang}")
         print(f"[Fluent] 🎯 Level: {current_level} → {target_level}")
-        print(f"[Fluent] 🔥 Streak: {streak} days")
+        print(f"[Fluent] 🔥 Streak: {streak} {'day' if streak == 1 else 'days'}")
 
         sr_path = data / "spaced-repetition.json"
         if sr_path.exists():
@@ -51,7 +59,6 @@ def main():
                 with open(sr_path, 'r', encoding='utf-8') as f:
                     sr_data = json.load(f)
 
-                today = datetime.now().strftime("%Y-%m-%d")
                 due_count = 0
 
                 items = sr_data.get("items", {})
