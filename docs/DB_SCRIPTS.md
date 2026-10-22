@@ -63,13 +63,20 @@ prints compact JSON with just what a review session needs:
     "<item_id>": { "...SR item fields...": "", "review_history": ["last 3"],
                    "mistake": { "...mistakes-db entry...": "", "examples": ["last 2"] } }
   },
+  "rounds": [
+    { "group": null, "items": ["time_word_met_order"] },
+    { "group": "article_gender", "items": ["article_de_het_werk", "article_de_het_maaltijd"] }
+  ],
   "upcoming": { "tomorrow": 14, "this_week": 18, "later": 23 }
 }
 ```
 
-`due_items` is ordered most urgent first (priority, then oldest `due_date`) and
-capped at `review_items_per_day`; `computed.due_review_items` still lists every
-due id. `mistake` is present only for items tracked in mistakes-db, without the
+`rounds` (and `computed.due_rounds`, uncapped) bundles due items that share an
+exercise shape into one round, so several de/het nouns use one review slot
+(see `.claude/hooks/sr_groups.py`). Rounds are ordered most urgent first
+(priority, then oldest `due_date`) and capped at `review_items_per_day`;
+`due_items` holds every item in the shown rounds, and
+`computed.due_review_items` still lists every due id. `mistake` is present only for items tracked in mistakes-db, without the
 fields that duplicate the SR item (`category`, `next_review`, `last_occurred`).
 
 ## Writing
@@ -150,6 +157,10 @@ Everything else is optional; omitted fields do not update.
   a row, `high` after a miss or with easiness factor < 1.8, `low` once
   mastery ≥ 3 or interval ≥ 21 days, otherwise `medium`. `read-db.py` lists
   due items by priority, then most overdue first.
+- New SR items get a `group` (review group, see `.claude/hooks/sr_groups.py`):
+  the entry's own `group` if given (string, or `null` to stay ungrouped),
+  otherwise the first matching rule. Existing items without the field are
+  grouped by the same rules at read time. A non-string `group` exits `1`.
 
 ### Exit codes
 - `0` success

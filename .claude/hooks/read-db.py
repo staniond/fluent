@@ -18,6 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fluent_paths import data_dir, force_utf8_io  # noqa: E402
+from sr_groups import build_rounds  # noqa: E402
 
 force_utf8_io()
 DATA_DIR = data_dir()
@@ -59,15 +60,17 @@ DUE_MISTAKE_DROP = ("category", "last_occurred", "next_review")
 
 
 def due_view(databases: dict, computed: dict, queue: dict) -> dict:
-    """Compact view for a review session: learner basics, the due items (capped
-    at the daily limit, most urgent first) with their mistakes-db entries, and
-    counts for the rest of the schedule. A few KB instead of the full dump."""
+    """Compact view for a review session: learner basics, today's review
+    rounds (capped at the daily limit; a grouped round uses one slot), the
+    items in them with their mistakes-db entries, and counts for the rest of
+    the schedule. A few KB instead of the full dump."""
     profile = databases.get("learner_profile", {})
     sr = databases.get("spaced_repetition", {})
     items = sr.get("items", {})
     patterns = databases.get("mistakes_db", {}).get("error_patterns", {})
     limits = sr.get("daily_limits", {})
-    shown = computed["due_review_items"][:limits.get("review_items_per_day", 20)]
+    rounds = computed["due_rounds"][:limits.get("review_items_per_day", 20)]
+    shown = [iid for r in rounds for iid in r["items"]]
 
     due = {}
     for iid in shown:
@@ -82,6 +85,7 @@ def due_view(databases: dict, computed: dict, queue: dict) -> dict:
 
     return {
         "computed": dict(computed, due_items_shown=len(shown)),
+        "rounds": rounds,
         "learner": dict(
             profile.get("learner", {}),
             current_streak_days=profile.get("current_streak_days", 0),
@@ -159,6 +163,7 @@ def main():
         "today": today,
         "due_reviews_count": len(due_items),
         "due_review_items": due_items,
+        "due_rounds": build_rounds(due_items, items),
         "next_session_id": next_session_id(sessions),
         "streak_active": streak_active,
         "days_since_last_session": days_since,

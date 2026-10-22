@@ -25,7 +25,11 @@ Skip this skill when the queue is empty — suggest `/fluent-vocab` or `/fluent-
 python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/read-db.py" --due
 ```
 
-`--due` returns only what a review needs (compact JSON, a few KB): `learner` (name, level, streak), `computed` (`today`, `next_session_id`, `due_reviews_count`, `streak_active`), `due_items` (already sorted most urgent first and capped at `daily_limits.review_items_per_day`; each carries its last review history and, for error patterns, the `mistake` entry with recent `examples`) and `upcoming` counts. Review the items in the order given; `due_reviews_count` minus `due_items_shown` is the backlog left for tomorrow. Don't use the full `read-db.py` output here — it is well over 100KB.
+`--due` returns only what a review needs (compact JSON, a few KB): `learner` (name, level, streak), `computed` (`today`, `next_session_id`, `due_reviews_count`, `streak_active`), `rounds`, `due_items` and `upcoming` counts. Don't use the full `read-db.py` output here — it is well over 100KB.
+
+- `rounds` is today's session, most urgent first and capped at `daily_limits.review_items_per_day`. Each round is `{"group": null, "items": [one id]}` (ask it alone) or `{"group": "article_gender", "items": [up to 6 ids]}` (ask them together, see step 3). A round uses one daily slot.
+- `due_items` holds the details of every item in `rounds`: SM-2 fields, recent `review_history` and, for error patterns, the `mistake` entry with recent `examples`.
+- `due_reviews_count` minus `due_items_shown` is the backlog left for tomorrow.
 
 If the queue is empty:
 
@@ -45,7 +49,7 @@ Want to practice something new? Try:
 
 Hallo {name}! Time to review items your brain is about to forget. This keeps everything fresh. 🧠
 
-**Items Due Today:** {count}
+**Items Due Today:** {items} in {rounds} rounds
 **Estimated Time:** ~{minutes} min
 
 Why review? Spaced repetition prevents forgetting, moves items into long-term memory, and builds automaticity.
@@ -77,7 +81,7 @@ Generate an exercise matched to `item_type`:
 - **vocabulary**: recognition (target → native), production (native → target), or cloze — rotate modes.
 - **grammar_rule**: a fill-in or error-correction exercise that tests the rule.
 
-Present one at a time:
+Present one round at a time, in the order of `rounds`. `{N}/{total}` counts rounds:
 
 ```markdown
 ## Review {N}/{total} — {priority emoji}
@@ -91,6 +95,15 @@ Present one at a time:
 **Type your answer:**
 ```
 
+**Grouped rounds** (`group` is not null): ask every item of the round in one quick-fire exercise of the group's shape, and let the learner answer them all in one message:
+
+- `article_gender`: "de or het?" with each noun in a short sentence or alone — `___ werk · ___ boter · ___ huis`.
+- `spelling`: one word or short sentence per item to write out correctly (dictate it via the English meaning, never show the misspelling).
+- `vocabulary`: a short list to translate; mix directions within the round.
+- Any other group: the same exercise shape for each member.
+
+Give compact feedback per item (✅/❌ + the correct form and a one-line why for misses) instead of a full feedback block each, and **grade every item separately**: one `review_results[]` entry per item, 10 for right first time, 6 for right after hesitation or self-correction, 2 for wrong.
+
 ### 4. Evaluate + update SM-2
 
 Use the `fluent-feedback-formatter` skill for per-answer feedback.
@@ -103,7 +116,7 @@ Then stage the item for the end-of-session update. Do NOT hand-edit `spaced-repe
 
 The `update-db.py` script derives `quality = score // 2`, runs the SM-2 math (see `fluent-sm2-calculator` skill), recomputes priority and rebuilds the queue. Send the score, not just the quality, so the 0-10 grade is kept in `review_history`.
 
-### 5. Progress pulse every 5 items
+### 5. Progress pulse every 5 rounds
 
 ```markdown
 ## Progress Update
@@ -120,7 +133,7 @@ Keep going! 💪
 ```markdown
 ## 🎉 Review Session Complete!
 
-**Reviewed:** {count}
+**Reviewed:** {count} items in {rounds} rounds
 **Accuracy:** {percent}%
 **Time:** {min} min
 

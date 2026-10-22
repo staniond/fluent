@@ -380,6 +380,26 @@ class UpdateDbSmokeTest(unittest.TestCase):
                 review_results=[{"item_id": "vocab_dag", "quality": 1}])).returncode, 0)
         self.assertEqual(self._load("spaced-repetition.json")["items"]["vocab_dag"]["priority"], "critical")
 
+    def test_new_items_get_review_group(self):
+        payload = self._second_session(
+            errors=[{"pattern_id": "article_de_het_kaas", "category": "grammar"},
+                    {"pattern_id": "word_order_x", "category": "grammar"},
+                    {"pattern_id": "article_de_het_boek", "category": "grammar", "group": None}],
+            new_vocabulary=[{"item_id": "vocab_kaas", "content": "de kaas", "answer": "cheese"},
+                            {"item_id": "vocab_custom", "content": "x", "group": "custom"}])
+        proc = self._run(payload)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        items = self._load("spaced-repetition.json")["items"]
+        self.assertEqual(items["article_de_het_kaas"]["group"], "article_gender")
+        self.assertNotIn("group", items["word_order_x"])
+        self.assertIsNone(items["article_de_het_boek"]["group"])  # explicit opt-out kept
+        self.assertEqual(items["vocab_kaas"]["group"], "vocabulary")
+        self.assertEqual(items["vocab_custom"]["group"], "custom")
+
+    def test_invalid_group_exits_1(self):
+        payload = self._second_session(errors=[{"pattern_id": "x", "group": ["a"]}])
+        self.assertEqual(self._run(payload).returncode, 1)
+
     def test_milestone_string_form(self):
         text = "Reached A2 vocabulary milestone"
         proc = self._run(self._payload_with("session-100", [text]))

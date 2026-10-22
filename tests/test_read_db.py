@@ -76,6 +76,23 @@ class ReadDbTest(unittest.TestCase):
         self.assertEqual(crit["mistake"]["frequency"], 4)
         self.assertNotIn("mistake", out["due_items"]["high_old"])
 
+    def test_due_mode_caps_by_rounds(self):
+        # Four de/het nouns form one round, so a limit of 2 slots shows 5 items.
+        items = {f"article_de_het_{w}": {"priority": "high", "due_date": "2020-01-01"}
+                 for w in ("huis", "werk", "boter", "kaas")}
+        items["solo"] = {"priority": "critical", "due_date": "2020-01-01"}
+        items["solo2"] = {"priority": "low", "due_date": "2020-01-01"}
+        (self.tmp / "data" / "spaced-repetition.json").write_text(json.dumps({
+            "items": items, "daily_limits": {"review_items_per_day": 2}}))
+        out = self._run("--due")
+        self.assertEqual(out["rounds"], [
+            {"group": None, "items": ["solo"]},
+            {"group": "article_gender", "items": [f"article_de_het_{w}" for w in ("huis", "werk", "boter", "kaas")]},
+        ])
+        self.assertEqual(out["computed"]["due_items_shown"], 5)
+        self.assertEqual(len(out["computed"]["due_rounds"]), 3)
+        self.assertNotIn("solo2", out["due_items"])
+
 
 if __name__ == "__main__":
     unittest.main()

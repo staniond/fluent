@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fluent_paths import ensure_data_dir, ensure_backups_dir, force_utf8_io  # noqa: E402
+from sr_groups import infer_group  # noqa: E402
 
 force_utf8_io()
 DATA_DIR = ensure_data_dir()
@@ -250,6 +251,25 @@ def apply_review(item: dict, quality: int, today: str, score=None, source=None):
     if source:
         entry["source"] = source
     item.setdefault("review_history", []).append(entry)
+
+
+def set_group(item: dict, item_id: str, entry: dict):
+    """Store the review group on a new SR item: the payload's `group` if given
+    (null/"" = ask on its own), else the sr_groups rule match, if any."""
+    group = entry["group"] if "group" in entry else infer_group(item_id, item)
+    if "group" in entry or group:
+        item["group"] = group
+
+
+def validate_groups(session: dict):
+    """`group` on errors[]/new_vocabulary[] entries must be a string or null.
+    Exits 1 before any DB is touched."""
+    for key in ("errors", "new_vocabulary"):
+        for n, entry in enumerate(session.get(key, [])):
+            if isinstance(entry, dict) and "group" in entry and not (
+                    entry["group"] is None or isinstance(entry["group"], str)):
+                print(f"[Fluent] Error: {key}[{n}].group must be a string or null (got {entry['group']!r})", file=sys.stderr)
+                sys.exit(1)
 
 
 def validate_review_results(session: dict):
@@ -515,6 +535,7 @@ def update_spaced_repetition(sr: dict, session: dict):
                 "total_reviews": 0,
                 "priority": vocab.get("priority", "medium"),
             }
+            set_group(items[item_id], item_id, vocab)
 
     # A repeat of a known error outside review is a failed recall: pull the
     # item back to tomorrow. Skip items already graded in review_results this
@@ -525,6 +546,8 @@ def update_spaced_repetition(sr: dict, session: dict):
     for error in session.get("errors", []):
         item_id = error["pattern_id"]
         if item_id in items:
+            if "group" in error:
+                items[item_id]["group"] = error["group"]
             if item_id not in graded and item_id not in lapsed:
                 apply_review(items[item_id], ERROR_LAPSE_QUALITY, today, source="error")
                 lapsed.add(item_id)
@@ -549,6 +572,7 @@ def update_spaced_repetition(sr: dict, session: dict):
                 "total_reviews": 0,
                 "priority": "high",
             }
+            set_group(items[item_id], item_id, error)
 
     # Rebuild review queue
     sr["review_queue"] = {"today": [], "tomorrow": [], "this_week": [], "later": []}
@@ -663,6 +687,7 @@ def main():
     normalize_milestones(session)
     validate_skill_scores(session)
     validate_review_results(session)
+    validate_groups(session)
 
     session.setdefault("duration_minutes", 0)
 
