@@ -4,10 +4,12 @@ Fluent DB Reader Script
 Loads all 6 learning databases and outputs a single JSON object to stdout.
 
 Usage:
-    python3 .claude/hooks/read-db.py
+    python3 .claude/hooks/read-db.py          # everything
+    python3 .claude/hooks/read-db.py --due    # compact: today's reviews only
 
 Exit codes: 0=success, 1=partial (some files missing), 2=critical error
 """
+import argparse
 import json
 import re
 import sys
@@ -49,7 +51,55 @@ def next_session_id(sessions: list) -> str:
     return f"session-{len(sessions) + 1:03d}"
 
 
+# Review-history entries / mistake examples kept per item in --due output.
+DUE_HISTORY_KEEP = 3
+DUE_EXAMPLES_KEEP = 2
+# mistakes-db fields that duplicate the SR item (or are legacy aliases).
+DUE_MISTAKE_DROP = ("category", "last_occurred", "next_review")
+
+
+def due_view(databases: dict, computed: dict, queue: dict) -> dict:
+    """Compact view for a review session: learner basics, the due items (capped
+    at the daily limit, most urgent first) with their mistakes-db entries, and
+    counts for the rest of the schedule. A few KB instead of the full dump."""
+    profile = databases.get("learner_profile", {})
+    sr = databases.get("spaced_repetition", {})
+    items = sr.get("items", {})
+    patterns = databases.get("mistakes_db", {}).get("error_patterns", {})
+    limits = sr.get("daily_limits", {})
+    shown = computed["due_review_items"][:limits.get("review_items_per_day", 20)]
+
+    due = {}
+    for iid in shown:
+        item = dict(items[iid])
+        item["review_history"] = item.get("review_history", [])[-DUE_HISTORY_KEEP:]
+        pat = patterns.get(iid)
+        if pat is not None:
+            pat = {k: v for k, v in pat.items() if k not in DUE_MISTAKE_DROP}
+            pat["examples"] = pat.get("examples", [])[-DUE_EXAMPLES_KEEP:]
+            item["mistake"] = pat
+        due[iid] = item
+
+    return {
+        "computed": dict(computed, due_items_shown=len(shown)),
+        "learner": dict(
+            profile.get("learner", {}),
+            current_streak_days=profile.get("current_streak_days", 0),
+            last_updated=profile.get("last_updated"),
+            total_sessions=profile.get("total_sessions", 0),
+        ),
+        "daily_limits": limits,
+        "due_items": due,
+        "upcoming": {k: len(v) for k, v in queue.items() if k != "today"},
+    }
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Load the Fluent learner databases.")
+    parser.add_argument("--due", action="store_true",
+                        help="compact output with only today's due reviews")
+    args = parser.parse_args()
+
     databases = {}
     missing = []
 
@@ -77,10 +127,10 @@ def main():
     # The stored review_queue is bucketed relative to the day update-db.py last
     # ran, so by the next morning "today" is empty. Re-bucket against the real
     # date (in the output only; disk is untouched).
+    queue = {"today": [], "tomorrow": [], "this_week": [], "later": []}
     if items:
         tom = (now + timedelta(days=1)).strftime("%Y-%m-%d")
         week_end = (now + timedelta(days=7)).strftime("%Y-%m-%d")
-        queue = {"today": [], "tomorrow": [], "this_week": [], "later": []}
         for iid, item in items.items():
             due = item.get("due_date", today)
             if due <= today:
@@ -105,22 +155,24 @@ def main():
     except ValueError:
         days_since = None
 
-    result = {
-        "databases": databases,
-        "computed": {
-            "today": today,
-            "due_reviews_count": len(due_items),
-            "due_review_items": due_items,
-            "next_session_id": next_session_id(sessions),
-            "streak_active": streak_active,
-            "days_since_last_session": days_since,
-        },
+    computed = {
+        "today": today,
+        "due_reviews_count": len(due_items),
+        "due_review_items": due_items,
+        "next_session_id": next_session_id(sessions),
+        "streak_active": streak_active,
+        "days_since_last_session": days_since,
     }
+    if args.due:
+        result = due_view(databases, computed, queue)
+    else:
+        result = {"databases": databases, "computed": computed}
 
     if missing:
         result["_warnings"] = [f"Missing file: {m}" for m in missing]
 
-    json.dump(result, sys.stdout, indent=2, ensure_ascii=False)
+    # --due is compact JSON: it exists to stay small.
+    json.dump(result, sys.stdout, indent=None if args.due else 2, ensure_ascii=False)
     print()
 
     sys.exit(1 if missing else 0)

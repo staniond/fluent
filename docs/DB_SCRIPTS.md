@@ -4,7 +4,7 @@ Two Python scripts under `.claude/hooks/` manage the six learner databases:
 
 | Script | Purpose |
 |--------|---------|
-| `read-db.py` | Load all 6 databases (+ computed fields) in one call |
+| `read-db.py` | Load all 6 databases (+ computed fields) in one call; `--due` for today's reviews only |
 | `update-db.py` | Apply a session report to all 6 databases atomically |
 
 Both scripts resolve the data directory internally (see `fluent_paths.data_dir()`)
@@ -44,6 +44,33 @@ Outputs a single JSON object:
 
 Exit codes: `0` OK, `1` one or more files missing (partial result with
 `_warnings`), `2` critical error.
+
+### `--due`: today's reviews only
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/read-db.py" --due
+```
+
+The full output grows with every session (150KB+ after ~20 sessions). `--due`
+prints compact JSON with just what a review session needs:
+
+```json
+{
+  "computed": { "...same as above...": "", "due_items_shown": 14 },
+  "learner": { "name": "...", "target_language": "...", "current_streak_days": 1, "last_updated": "...", "total_sessions": 21 },
+  "daily_limits": { "review_items_per_day": 20, "new_items_per_day": 10 },
+  "due_items": {
+    "<item_id>": { "...SR item fields...": "", "review_history": ["last 3"],
+                   "mistake": { "...mistakes-db entry...": "", "examples": ["last 2"] } }
+  },
+  "upcoming": { "tomorrow": 14, "this_week": 18, "later": 23 }
+}
+```
+
+`due_items` is ordered most urgent first (priority, then oldest `due_date`) and
+capped at `review_items_per_day`; `computed.due_review_items` still lists every
+due id. `mistake` is present only for items tracked in mistakes-db, without the
+fields that duplicate the SR item (`category`, `next_review`, `last_occurred`).
 
 ## Writing
 

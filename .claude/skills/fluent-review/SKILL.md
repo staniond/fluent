@@ -22,10 +22,10 @@ Skip this skill when the queue is empty — suggest `/fluent-vocab` or `/fluent-
 ### 1. Load review queue
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/read-db.py"
+python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/read-db.py" --due
 ```
 
-Read `spaced-repetition.review_queue.today` and `daily_limits.review_items_per_day`. Sort items by `priority` (critical → high → medium → low). Cap at the daily limit (usually 20).
+`--due` returns only what a review needs (compact JSON, a few KB): `learner` (name, level, streak), `computed` (`today`, `next_session_id`, `due_reviews_count`, `streak_active`), `due_items` (already sorted most urgent first and capped at `daily_limits.review_items_per_day`; each carries its last review history and, for error patterns, the `mistake` entry with recent `examples`) and `upcoming` counts. Review the items in the order given; `due_reviews_count` minus `due_items_shown` is the backlog left for tomorrow. Don't use the full `read-db.py` output here — it is well over 100KB.
 
 If the queue is empty:
 
