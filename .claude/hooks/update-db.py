@@ -199,6 +199,92 @@ def calculate_sm2(item: dict, quality: int) -> dict:
     }
 
 
+# Quality recorded when a known error pattern recurs outside a review.
+ERROR_LAPSE_QUALITY = 2
+
+
+def compute_priority(item: dict) -> str:
+    """Priority from the item's own SM-2 state, so it can fall as well as rise.
+
+    critical: failed twice or more in a row
+    high:     failed last time, or a leech (easiness factor below 1.8)
+    low:      established (mastery >= 3 or interval >= 21 days)
+    medium:   everything else
+    """
+    if item.get("consecutive_incorrect", 0) >= 2:
+        return "critical"
+    if item.get("last_quality", 3) < 3 or item.get("easiness_factor", 2.5) < 1.8:
+        return "high"
+    if item.get("mastery_level", 0) >= 3 or item.get("interval_days", 1) >= 21:
+        return "low"
+    return "medium"
+
+
+def apply_review(item: dict, quality: int, today: str, score=None, source=None):
+    """Grade one recall of an existing SR item: SM-2, counters, mastery,
+    priority and history."""
+    result = calculate_sm2(item, quality)
+    item["easiness_factor"] = result["easiness_factor"]
+    item["interval_days"] = result["interval_days"]
+    item["repetitions"] = result["repetitions"]
+    item["due_date"] = date_plus_days(today, result["interval_days"])
+    item["last_reviewed"] = today
+    item["last_quality"] = quality
+    item["total_reviews"] = item.get("total_reviews", 0) + 1
+    if quality >= 3:
+        item["consecutive_correct"] = item.get("consecutive_correct", 0) + 1
+        item["consecutive_incorrect"] = 0
+    else:
+        item["consecutive_incorrect"] = item.get("consecutive_incorrect", 0) + 1
+        item["consecutive_correct"] = 0
+    # Mastery: rough map from repetitions and quality (clamped 0..5)
+    current = item.get("mastery_level", 0)
+    if item["repetitions"] >= 5 and item["consecutive_correct"] >= 3:
+        item["mastery_level"] = min(5, max(current, 3))
+    elif item["repetitions"] >= 2 and item["consecutive_correct"] >= 1 and quality >= 4:
+        item["mastery_level"] = min(5, current + 1)
+    item["priority"] = compute_priority(item)
+    entry = {"date": today, "quality": quality}
+    if score is not None:
+        entry["score"] = score
+    if source:
+        entry["source"] = source
+    item.setdefault("review_history", []).append(entry)
+
+
+def validate_review_results(session: dict):
+    """Check review_results and fill `quality` from `score` when omitted.
+
+    Each entry needs a string item_id and an integer quality 0-5 and/or an
+    integer score 0-10 (quality = score // 2). Exits 1 before any DB is
+    touched.
+    """
+    reviews = session.get("review_results", [])
+    if not isinstance(reviews, list):
+        print(f"[Fluent] Error: 'review_results' must be a list, got {type(reviews).__name__}", file=sys.stderr)
+        sys.exit(1)
+
+    def is_int(v):
+        return isinstance(v, int) and not isinstance(v, bool)
+
+    for n, r in enumerate(reviews):
+        if not isinstance(r, dict) or not isinstance(r.get("item_id"), str):
+            print(f"[Fluent] Error: review_results[{n}] needs a string 'item_id' (got {r!r})", file=sys.stderr)
+            sys.exit(1)
+        score, quality = r.get("score"), r.get("quality")
+        if score is not None and not (is_int(score) and 0 <= score <= 10):
+            print(f"[Fluent] Error: review_results[{n}].score must be an integer 0-10 (got {score!r})", file=sys.stderr)
+            sys.exit(1)
+        if quality is None:
+            if score is None:
+                print(f"[Fluent] Error: review_results[{n}] ({r['item_id']}) needs 'quality' or 'score'", file=sys.stderr)
+                sys.exit(1)
+            r["quality"] = score // 2
+        elif not (is_int(quality) and 0 <= quality <= 5):
+            print(f"[Fluent] Error: review_results[{n}].quality must be an integer 0-5 (got {quality!r})", file=sys.stderr)
+            sys.exit(1)
+
+
 # --- Updater functions ---
 # Each mutates in place. Confidence in learner-profile is 0-100 int.
 # Session-log preserves the existing rich schema (skills_practiced array,
@@ -402,42 +488,9 @@ def update_spaced_repetition(sr: dict, session: dict):
     items = sr.setdefault("items", {})
 
     for review in session.get("review_results", []):
-        item_id = review["item_id"]
-        quality = review["quality"]
-        if item_id in items:
-            item = items[item_id]
-            result = calculate_sm2(item, quality)
-            item["easiness_factor"] = result["easiness_factor"]
-            item["interval_days"] = result["interval_days"]
-            item["repetitions"] = result["repetitions"]
-            item["due_date"] = date_plus_days(today, result["interval_days"])
-            item["last_reviewed"] = today
-            item["last_quality"] = quality
-            item["total_reviews"] = item.get("total_reviews", 0) + 1
-            if quality >= 3:
-                item["consecutive_correct"] = item.get("consecutive_correct", 0) + 1
-                item["consecutive_incorrect"] = 0
-            else:
-                item["consecutive_incorrect"] = item.get("consecutive_incorrect", 0) + 1
-                item["consecutive_correct"] = 0
-            # Mastery: rough map from repetitions and quality (clamped 0..5)
-            current = item.get("mastery_level", 0)
-            if item["repetitions"] >= 5 and item["consecutive_correct"] >= 3:
-                item["mastery_level"] = min(5, max(current, 3))
-            elif item["repetitions"] >= 2 and item["consecutive_correct"] >= 1 and quality >= 4:
-                item["mastery_level"] = min(5, current + 1)
-            # priority heuristic
-            if item.get("consecutive_incorrect", 0) >= 2:
-                item["priority"] = "high"
-            elif item.get("mastery_level", 0) >= 3:
-                item["priority"] = "low"
-            else:
-                item["priority"] = item.get("priority", "medium")
-            item.setdefault("review_history", []).append({
-                "date": today,
-                "quality": quality,
-                "score": review.get("score", 0),
-            })
+        item = items.get(review["item_id"])
+        if item is not None:
+            apply_review(item, review["quality"], today, review.get("score"))
 
     for vocab in session.get("new_vocabulary", []):
         item_id = vocab["item_id"]
@@ -463,9 +516,19 @@ def update_spaced_repetition(sr: dict, session: dict):
                 "priority": vocab.get("priority", "medium"),
             }
 
+    # A repeat of a known error outside review is a failed recall: pull the
+    # item back to tomorrow. Skip items already graded in review_results this
+    # session (that grade wins, and counting both would double the lapse),
+    # and lapse each item at most once per session.
+    graded = {r["item_id"] for r in session.get("review_results", [])}
+    lapsed = set()
     for error in session.get("errors", []):
         item_id = error["pattern_id"]
-        if item_id not in items:
+        if item_id in items:
+            if item_id not in graded and item_id not in lapsed:
+                apply_review(items[item_id], ERROR_LAPSE_QUALITY, today, source="error")
+                lapsed.add(item_id)
+        else:
             items[item_id] = {
                 "id": item_id,
                 "type": "error_pattern",
@@ -599,6 +662,7 @@ def main():
     # malformed input, so disk stays untouched on a validation failure).
     normalize_milestones(session)
     validate_skill_scores(session)
+    validate_review_results(session)
 
     session.setdefault("duration_minutes", 0)
 

@@ -98,10 +98,10 @@ Use the `fluent-feedback-formatter` skill for per-answer feedback.
 Then stage the item for the end-of-session update. Do NOT hand-edit `spaced-repetition.json` — use `review_results[]` in the `fluent-db-updater` payload:
 
 ```json
-{ "item_id": "vocab_huis", "quality": 4 }
+{ "item_id": "vocab_huis", "score": 9 }
 ```
 
-The `update-db.py` script runs the SM-2 math (see `fluent-sm2-calculator` skill) and rebuilds the queue. Mapping: `quality = floor(score / 2)`.
+The `update-db.py` script derives `quality = score // 2`, runs the SM-2 math (see `fluent-sm2-calculator` skill), recomputes priority and rebuilds the queue. Send the score, not just the quality, so the 0-10 grade is kept in `review_history`.
 
 ### 5. Progress pulse every 5 items
 
@@ -148,8 +148,8 @@ Use the `fluent-db-updater` skill:
 
 - `command_used: "/fluent-review"`, `skills_practiced: [derived from reviewed items]`
 - `skill_scores` — aggregate per skill touched
-- `review_results[]` — every item reviewed, with `quality`
-- `errors[]` — only patterns where the learner got it wrong (bumps frequency)
+- `review_results[]` — every item reviewed, with its 0-10 `score`
+- `errors[]` — only patterns where the learner got it wrong (bumps frequency; an item also in `review_results[]` is graded by its review, not lapsed twice)
 - `focus_next_session[]` — the 2-3 items with lowest quality this session
 
 Save exchange to `/results/fluent-review-session-{NNN}.md` for later analysis.

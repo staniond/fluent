@@ -85,7 +85,7 @@ python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/update-db
     }
   ],
   "review_results": [
-    { "item_id": "vocab_dag", "quality": 4 }
+    { "item_id": "vocab_dag", "score": 9 }
   ],
   "topics_covered": ["articles", "house_vocabulary"],
   "breakthroughs": ["First correct use of 'het' vs 'de'"],
@@ -113,6 +113,16 @@ Everything else is optional; omitted fields do not update.
   mid-write cannot leave a half-written file.
 - Rebuilds `spaced-repetition.review_queue` from scratch each run — any manual
   edits there will be overwritten.
+- `review_results[]` entries take `score` (0–10, `quality = score // 2` when
+  `quality` is omitted) and/or `quality` (0–5). The score is kept in the
+  item's `review_history`. A missing or out-of-range value exits `1`.
+- An `errors[]` entry whose `pattern_id` is an existing SR item not graded in
+  `review_results[]` this session counts as a failed recall (quality 2): the
+  item is due tomorrow again. Repeats within one session lapse it once.
+- Each graded item's `priority` is recomputed: `critical` after 2+ misses in
+  a row, `high` after a miss or with easiness factor < 1.8, `low` once
+  mastery ≥ 3 or interval ≥ 21 days, otherwise `medium`. `read-db.py` lists
+  due items by priority, then most overdue first.
 
 ### Exit codes
 - `0` success

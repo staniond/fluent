@@ -106,7 +106,7 @@ python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/update-db
   "session_id": "session-NNN",
   "date": "YYYY-MM-DD",
   "review_results": [
-    { "item_id": "vocab_huis", "quality": 4 }
+    { "item_id": "vocab_huis", "score": 9 }
   ]
 }
 EOF

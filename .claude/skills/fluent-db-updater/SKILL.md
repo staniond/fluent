@@ -51,9 +51,9 @@ Key blocks the example covers: `skill_scores`, `errors[]`, `new_vocabulary[]`, `
 
 ### 3. Field notes
 
-- `errors[]` — one entry per distinct mistake this session. Collapse duplicates (same `pattern_id`) before sending; `frequency` is bumped by the script.
+- `errors[]` — one entry per distinct mistake this session. Collapse duplicates (same `pattern_id`) before sending; `frequency` is bumped by the script. If the `pattern_id` is already a spaced-repetition item and was *not* graded in `review_results[]` this session, the script counts it as a failed recall (quality 2) and reschedules it for tomorrow.
 - `new_vocabulary[]` — items the learner met for the first time. Fill every field; incomplete entries yield incomplete spaced-repetition records.
-- `review_results[]` — items already in the queue that were reviewed. The script runs SM-2 on each. See the `fluent-sm2-calculator` skill. Mapping: `quality = floor(score / 2)`.
+- `review_results[]` — items already in the queue that were reviewed. Send the 0-10 `score` you gave the answer; the script derives `quality = score // 2` (or send `quality` 0-5 directly) and stores both in `review_history`. The script runs SM-2 on each and recomputes `priority`. See the `fluent-sm2-calculator` skill. An entry without a valid `quality` or `score` exits `1` with no files written.
 - `skill_scores[].correct` counts correct exercises, not a percentage. Accuracy is derived.
 - `confidence` in `learner-profile.skills` is 0–100 integer; `accuracy` in `progress-db` is 0.0–1.0 float. The script handles the conversion.
 - `milestones[]` — each entry is a bare string OR an object `{ "milestone": <required non-empty string>, "date": <optional YYYY-MM-DD, defaults to the session date> }`. Don't set a nested `session_id`; the script stamps the authoritative top-level one. A malformed entry (neither string nor object, or an object missing/empty `milestone`) exits `1` with no files written. Each milestone becomes both a `session-log.milestones[]` record and a `learner-profile.achievements[]` entry.
@@ -85,11 +85,11 @@ python3 "${CLAUDE_PLUGIN_ROOT:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/update-db
     "grammar":    { "exercises": 2, "correct": 1, "time_minutes": 5 }
   },
   "review_results": [
-    { "item_id": "vocab_huis", "quality": 5 },
-    { "item_id": "vocab_deur", "quality": 4 },
-    { "item_id": "vocab_raam", "quality": 5 },
-    { "item_id": "grammar_omdat_word_order", "quality": 2 },
-    { "item_id": "grammar_past_tense", "quality": 4 }
+    { "item_id": "vocab_huis", "score": 10 },
+    { "item_id": "vocab_deur", "score": 8 },
+    { "item_id": "vocab_raam", "score": 10 },
+    { "item_id": "grammar_omdat_word_order", "score": 4 },
+    { "item_id": "grammar_past_tense", "score": 9 }
   ],
   "errors": [
     {

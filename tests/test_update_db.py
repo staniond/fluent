@@ -295,6 +295,91 @@ class UpdateDbSmokeTest(unittest.TestCase):
         self.assertEqual(pat["next_review"], due)
         self.assertEqual(pat["frequency"], 1)  # a correct review is not an error
 
+    # --- SR tracking: error lapses, scores, priority ---
+
+    def _second_session(self, **overrides):
+        payload = dict(SESSION_PAYLOAD)
+        payload.update(session_id="session-003", date="2026-04-25", errors=[],
+                       new_vocabulary=[], review_results=[])
+        payload.update(overrides)
+        return payload
+
+    def test_repeat_error_reschedules_existing_item(self):
+        # vocab_dag is due 2026-04-24 with repetitions=1. Getting it wrong
+        # again in a non-review session must pull it back to tomorrow.
+        payload = self._second_session(review_results=[], errors=[{
+            "pattern_id": "vocab_dag", "category": "vocabulary",
+            "your_answer": "x", "correct_answer": "dag"}])
+        proc = self._run(payload)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        dag = self._load("spaced-repetition.json")["items"]["vocab_dag"]
+        self.assertEqual(dag["due_date"], "2026-04-26")
+        self.assertEqual(dag["repetitions"], 0)
+        self.assertEqual(dag["consecutive_incorrect"], 1)
+        self.assertEqual(dag["consecutive_correct"], 0)
+        self.assertEqual(dag["last_quality"], 2)
+        self.assertEqual(dag["review_history"][-1]["source"], "error")
+
+    def test_error_and_review_same_item_counts_once(self):
+        err = {"pattern_id": "vocab_dag", "category": "vocabulary",
+               "your_answer": "x", "correct_answer": "dag"}
+        payload = self._second_session(
+            errors=[err, err],
+            review_results=[{"item_id": "vocab_dag", "quality": 1}])
+        self.assertEqual(self._run(payload).returncode, 0)
+        dag = self._load("spaced-repetition.json")["items"]["vocab_dag"]
+        self.assertEqual(dag["consecutive_incorrect"], 1)
+        self.assertEqual(dag["total_reviews"], 2)  # fixture 1 + this review only
+        self.assertEqual(dag["last_quality"], 1)
+
+    def test_repeated_errors_lapse_once_per_session(self):
+        err = {"pattern_id": "vocab_dag", "category": "vocabulary"}
+        self.assertEqual(self._run(self._second_session(errors=[err, err])).returncode, 0)
+        dag = self._load("spaced-repetition.json")["items"]["vocab_dag"]
+        self.assertEqual(dag["consecutive_incorrect"], 1)
+
+    def test_review_score_recorded_and_quality_derived(self):
+        payload = self._second_session(review_results=[{"item_id": "vocab_dag", "score": 7}])
+        proc = self._run(payload)
+        self.assertEqual(proc.returncode, 0, msg=proc.stderr)
+        dag = self._load("spaced-repetition.json")["items"]["vocab_dag"]
+        self.assertEqual(dag["last_quality"], 3)
+        self.assertEqual(dag["review_history"][-1], {"date": "2026-04-25", "quality": 3, "score": 7})
+
+    def test_review_without_score_omits_it(self):
+        payload = self._second_session(review_results=[{"item_id": "vocab_dag", "quality": 4}])
+        self.assertEqual(self._run(payload).returncode, 0)
+        entry = self._load("spaced-repetition.json")["items"]["vocab_dag"]["review_history"][-1]
+        self.assertNotIn("score", entry)
+
+    def test_invalid_review_results_exit_1_no_mutation(self):
+        before = self._load("spaced-repetition.json")
+        for bad in ({"item_id": "vocab_dag"},
+                    {"item_id": "vocab_dag", "quality": 6},
+                    {"item_id": "vocab_dag", "score": 11},
+                    {"item_id": "vocab_dag", "quality": True},
+                    {"quality": 4}):
+            with self.subTest(case=bad):
+                proc = self._run(self._second_session(review_results=[bad]))
+                self.assertEqual(proc.returncode, 1, msg=proc.stderr)
+                self.assertEqual(self._load("spaced-repetition.json"), before)
+
+    def test_priority_follows_performance(self):
+        # Good review -> medium (fixture had "medium" hard-coded; start from high)
+        sr = self._load("spaced-repetition.json")
+        sr["items"]["vocab_dag"]["priority"] = "high"
+        (self.tmp / "data" / "spaced-repetition.json").write_text(json.dumps(sr))
+        self.assertEqual(self._run(self._second_session(
+            review_results=[{"item_id": "vocab_dag", "quality": 5}])).returncode, 0)
+        self.assertEqual(self._load("spaced-repetition.json")["items"]["vocab_dag"]["priority"], "medium")
+
+        # Two misses in a row -> critical
+        for n, date in enumerate(("2026-04-26", "2026-04-27")):
+            self.assertEqual(self._run(self._second_session(
+                session_id=f"session-01{n}", date=date,
+                review_results=[{"item_id": "vocab_dag", "quality": 1}])).returncode, 0)
+        self.assertEqual(self._load("spaced-repetition.json")["items"]["vocab_dag"]["priority"], "critical")
+
     def test_milestone_string_form(self):
         text = "Reached A2 vocabulary milestone"
         proc = self._run(self._payload_with("session-100", [text]))

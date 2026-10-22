@@ -67,7 +67,12 @@ def main():
 
     sr = databases.get("spaced_repetition", {})
     items = sr.get("items", {})
-    due_items = [iid for iid, item in items.items() if item.get("due_date", "") <= today]
+    # Most urgent first: priority, then most overdue (earliest due_date).
+    rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    due_items = sorted(
+        (iid for iid, item in items.items() if item.get("due_date", "") <= today),
+        key=lambda iid: (rank.get(items[iid].get("priority"), 2), items[iid].get("due_date", "")),
+    )
 
     # The stored review_queue is bucketed relative to the day update-db.py last
     # ran, so by the next morning "today" is empty. Re-bucket against the real
@@ -86,6 +91,7 @@ def main():
                 queue["this_week"].append(iid)
             else:
                 queue["later"].append(iid)
+        queue["today"] = due_items
         sr["review_queue"] = queue
 
     log = databases.get("session_log", {})
