@@ -19,6 +19,7 @@ MAX_ROUND_SIZE = 6
 # (group, predicate(item_id, item)) — first match wins.
 GROUP_RULES = [
     ("article_gender", lambda iid, item: iid.startswith("article_de_het_")),
+    ("irregular_participles", lambda iid, item: iid.startswith("irregular_participle_")),
     ("spelling", lambda iid, item: item.get("category") == "spelling"),
     ("vocabulary", lambda iid, item: item.get("type") == "vocabulary"),
 ]

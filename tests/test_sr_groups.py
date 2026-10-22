@@ -16,6 +16,7 @@ from sr_groups import MAX_ROUND_SIZE, build_rounds, infer_group  # noqa: E402
 class InferGroupTest(unittest.TestCase):
     def test_rules(self):
         self.assertEqual(infer_group("article_de_het_huis", {"type": "error_pattern"}), "article_gender")
+        self.assertEqual(infer_group("irregular_participle_kopen", {"type": "error_pattern"}), "irregular_participles")
         self.assertEqual(infer_group("spelling_s_z", {"category": "spelling"}), "spelling")
         self.assertEqual(infer_group("vocab_aardig", {"type": "vocabulary"}), "vocabulary")
         self.assertIsNone(infer_group("modal_infinitive_order", {"type": "error_pattern", "category": "grammar"}))

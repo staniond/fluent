@@ -98,6 +98,7 @@ Present one round at a time, in the order of `rounds`. `{N}/{total}` counts roun
 **Grouped rounds** (`group` is not null): ask every item of the round in one quick-fire exercise of the group's shape, and let the learner answer them all in one message:
 
 - `article_gender`: "de or het?" with each noun in a short sentence or alone — `___ werk · ___ boter · ___ huis`.
+- `irregular_participles`: give each verb's infinitive and ask for the perfect with its auxiliary — `kopen → ik heb ___`, `gaan → ik ben ___`. A missing or wrong `hebben`/`zijn` counts as a miss.
 - `spelling`: one word or short sentence per item to write out correctly (dictate it via the English meaning, never show the misspelling).
 - `vocabulary`: a short list to translate; mix directions within the round.
 - Any other group: the same exercise shape for each member.
