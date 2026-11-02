@@ -40,3 +40,6 @@ npm-debug.log*
 temp/
 *.json.tmp
 
+
+# Local Claude Code notes (personal, per machine)
+CLAUDE.local.md
