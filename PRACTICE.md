@@ -188,7 +188,7 @@ In each session, allocate time:
 - Start easy (fill in blanks)
 - Progress to medium (complete sentences)
 - End hard (full scenarios)
-- Adjust based on success rate (aim for 60-70% correct)
+- Adjust based on success rate (aim for ~85% correct)
 
 ### 5. Confidence Building
 - Always start with 1-2 easy wins
@@ -236,9 +236,9 @@ In each session, allocate time:
 ```
 
 ### Adapt Difficulty Based on Performance
-- If student scores <50%: Simplify, add more scaffolding
-- If student scores 50-70%: Perfect difficulty, continue
-- If student scores >70%: Increase difficulty, introduce new patterns
+- If student scores <75%: Simplify, add more scaffolding
+- If student scores 75-90%: Perfect difficulty, continue (aim for ~85%)
+- If student scores >90%: Increase difficulty, introduce new patterns
 
 ---
 
@@ -326,7 +326,7 @@ Every session should have:
 ## 📈 Success Metrics
 
 ### Track These Over Time
-- Overall accuracy % (target: 70%+)
+- Overall accuracy % (target: ~85%)
 - Critical error count (target: <2 per session)
 - Moderate error count (target: <5 per session)
 - Speed (words per minute written)

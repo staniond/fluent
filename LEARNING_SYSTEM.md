@@ -69,12 +69,14 @@ Keep the file names consistent with this `{skill}-session-{ID}.md` pattern so se
 5. **Comprehensible Input (i+1)**
    - Slightly above current level
    - Challenging but achievable
-   - Aim for 60-70% success rate
+   - Aim for ~85% success rate
 
 6. **Desirable Difficulty**
    - Start easy → medium → hard
    - Adjust based on success rate
    - Too easy = no learning, too hard = frustration
+   - Target ~85% correct (Wilson et al. 2019, "The Eighty Five Percent Rule for Optimal Learning"); spaced-repetition reviews ~90% recall, like Anki/FSRS defaults
+   - A review queue made mostly of error patterns, or overdue after a break, scores lower; don't read that as "in the zone"
 
 ---
 

@@ -80,9 +80,9 @@ Use `fluent-session-analyzer` to choose which patterns to target.
 
 After every 3-4 exercises, check rolling accuracy:
 
-- **<50%** → drop difficulty (smaller chunks, more scaffolding, offer hints)
-- **50-70%** → hold — this is the target zone
-- **>70%** → raise difficulty (longer sentences, less scaffolding, rarer vocabulary)
+- **<75%** → drop difficulty (smaller chunks, more scaffolding, offer hints)
+- **75-90%** → hold — this is the target zone (aim for ~85%)
+- **>90%** → raise difficulty (longer sentences, less scaffolding, rarer vocabulary)
 
 Formula reference:
 

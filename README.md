@@ -130,7 +130,7 @@ The system uses **evidence-based learning methodologies** including:
 - 📊 **Comprehensive Tracking** - Automatic progress monitoring with detailed statistics
 - 🧠 **Spaced Repetition** - SM-2 algorithm schedules reviews just before you forget
 - 🎮 **Gamification** - Streaks, achievements, mastery levels (0-5 stars)
-- 🔄 **Adaptive Difficulty** - Automatically adjusts to your performance (targets 60-70% success rate)
+- 🔄 **Adaptive Difficulty** - Automatically adjusts to your performance (targets ~85% success rate)
 - 📝 **Multi-Modal Practice** - Writing, speaking, vocabulary, reading, listening
 - ⚡ **Immediate Feedback** - Clear explanations with every correction
 - 🎨 **Interactive Sessions** - One question at a time, conversational feel
@@ -178,7 +178,7 @@ This system implements proven learning science:
 **5. Comprehensible Input (i+1)** - Content slightly above your level
 - 🔬 Research shows: **Optimal learning zone** (Krashen's Input Hypothesis)
 
-**6. Desirable Difficulty** - Targets 60-70% success rate
+**6. Desirable Difficulty** - Targets ~85% success rate (Wilson et al. 2019, "The Eighty Five Percent Rule")
 - 🔬 Research shows: **Too easy = no learning, too hard = frustration**
 
 ---
@@ -324,9 +324,9 @@ Every skill and pattern gets a star rating:
 
 The system automatically adjusts:
 
-- **Success rate 40-50%** → Too hard, makes easier
-- **Success rate 60-70%** → Perfect challenge! ✨
-- **Success rate 80-90%** → Too easy, makes harder
+- **Success rate below 75%** → Too hard, makes easier
+- **Success rate 75-90% (aim ~85%)** → Perfect challenge! ✨
+- **Success rate above 90%** → Too easy, makes harder
 
 **Goal:** Keep you in the "sweet spot" where learning happens.
 

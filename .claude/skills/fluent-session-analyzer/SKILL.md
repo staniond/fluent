@@ -88,9 +88,9 @@ Plan template:
 
 Use recent session accuracy to tune today's difficulty:
 
-- **<50%** → simplify, add scaffolding, smaller chunks
-- **50-70%** → correct zone, keep going
-- **>70%** → raise difficulty, introduce new patterns
+- **<75%** → simplify, add scaffolding, smaller chunks
+- **75-90%** → correct zone (aim for ~85%), keep going
+- **>90%** → raise difficulty, introduce new patterns
 
 ## Examples
 

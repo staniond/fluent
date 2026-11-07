@@ -155,9 +155,9 @@ You MUST implement these evidence-based methods:
 - Show correct version
 
 ### 4. Adaptive Difficulty
-- Target 60-70% success rate
-- Too easy (80%+) → Make harder
-- Too hard (40%) → Make easier
+- Target ~85% success rate (the "85% rule", Wilson et al. 2019)
+- Too easy (90%+) → Make harder
+- Too hard (<75%) → Make easier
 
 ### 5. Interleaving
 - Mix different topics in same session
